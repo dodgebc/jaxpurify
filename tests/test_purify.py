@@ -1,0 +1,104 @@
+import jax
+import jax.numpy as jnp
+import jax.random as jr
+
+import jaxpurify as jp
+from jaxpurify import purify
+
+rng = jr.key(0)
+
+def test_params():
+    @purify
+    def model():
+        x = jp.param(3, name="x")
+        return x**2
+
+    params = model.normal(rng)
+    result = model(params)
+
+    assert params["x"].shape == (3,)
+    assert jnp.allclose(result, params["x"]**2)
+
+def test_shapes():
+    @purify
+    def model():
+        x = jp.param((4,3), name="x")
+        y = jp.param(2, name="y")
+
+    shapes = model.shapes()
+    zeros = model.zeros()
+    params = model.normal(rng)
+
+    assert shapes["x"].shape == (4, 3)
+    assert shapes["y"].shape == (2,)
+    assert zeros["x"].shape == (4, 3)
+    assert zeros["y"].shape == (2,)
+    assert params["x"].shape == (4, 3)
+    assert params["y"].shape == (2,)
+
+def test_ravel():
+    @purify(ravel=True)
+    def model():
+        x = jp.param((4,3), name="x")
+        y = jp.param(2, name="y")
+
+    shapes = model.shapes()
+    zeros = model.zeros()
+    params = model.normal(rng)
+
+    unraveled_params = model.unravel(params)
+
+    assert shapes.shape == (14,)
+    assert zeros.shape == (14,)
+    assert params.shape == (14,)
+    assert unraveled_params["x"].shape == (4, 3)
+    assert unraveled_params["y"].shape == (2,)
+
+def test_fixed():
+    @purify
+    def model():
+        x = jp.param(3, name="x")
+        b = jp.fixed(name="b")
+        return x + b
+
+    params = model.normal(rng)
+    fixed = model.fixed()
+    result = model(params, fixed)
+
+    assert fixed["b"] == 0.0
+    assert jnp.allclose(result, params["x"] + fixed["b"])
+
+def test_intermediates():
+    @purify
+    def model():
+        x = jp.param(3, name="x")
+        y = jp.intermediate(x**2, name="y")
+        return y + 1
+
+    params = model.normal(rng)
+    intermediates = model.intermediates(params)
+    assert jnp.allclose(intermediates["y"], params["x"]**2)
+
+def higher_order_primitives():
+    @purify
+    def model():
+        x = jp.param(3, name="x")
+        y = jax.vjp(jnp.sin, x)[1](x + 1)[0]
+        z = jax.jit(jax.vmap(jnp.cos))(y)
+        return z
+
+    def model_explicit(x):
+        y = jax.vjp(jnp.sin, x)[1](x + 1)[0]
+        z = jax.jit(jax.vmap(jnp.cos))(y)
+        return z
+
+    params = model.normal(rng)
+    result = model(params)
+    result_explicit = model_explicit(params)
+    assert jnp.allclose(result, result_explicit)
+
+    result_vjp = jax.vjp(model_explicit, params)[1](2*result)
+    result_vjp_explicit = jax.vjp(model_explicit, params)[1](2*result_explicit)
+    assert jnp.allclose(result_vjp, result_vjp_explicit)
+
+    

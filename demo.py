@@ -1,7 +1,21 @@
+"""
+Instructive examples of how to use jaxpurify.
+
+ 1. Basic model with random parameters
+ 2. Demonstration of `shapes`, `zeros`, `fixed`, and `intermediates` convenience methods
+ 3. Demonstration of `ravel=True` and `unravel` functionality
+ 4. Complex mock example with function calls, log-normal and uniform variables, and higher-order primitives
+ 5. Bayesian inference application with a linear Gaussian process model
+
+"""
+
 # %%
 import jax
 import jax.numpy as jnp
 import jax.random as jr
+from jax.scipy.sparse.linalg import cg
+from functools import partial
+import matplotlib.pyplot as plt
 
 import jaxpurify as jp
 from jaxpurify import purify
@@ -9,7 +23,7 @@ from jaxpurify import purify
 rng = jr.key(0)
 
 
-# %% Minimal example
+# %% 1. Basic model with random parameters
 @purify
 def model():
     x = jp.param(3, name="x")
@@ -22,10 +36,10 @@ print("Params:", params)
 print("Result:", result)
 
 
-# %% Demonstration of `shapes`, `zeros`, `fixed`, `intermediate`
+# %% 2. Demonstration of `shapes`, `zeros`, `fixed`, and `intermediates` convenience methods
 @purify
 def model():
-    a = jnp.array([[1, 0, 1]])
+    a = jnp.array([[1, 2, 3]])
     x = jp.param(3, name="x")
     b = jp.fixed(name="b")
     y = jp.intermediate(a * x, name="prod") + b
@@ -34,15 +48,17 @@ def model():
 param_shapes = model.shapes()
 zero_params = model.zeros()
 zero_fixed = model.fixed()
+result = model(zero_params, {"b": 2.0})
 intermediates = model.intermediates(zero_params, {"b": 2.0})
 
 print("Param shapes:", param_shapes)
 print("Zero params:", zero_params)
 print("Zero fixed:", zero_fixed)
+print("Result:", result)
 print("Intermediates:", intermediates)
 
 
-# %% Demonstration of `ravel=True`, in `unraveled_params` we see unnamed parameters get object id as name
+# %% 3. Demonstration of `ravel=True` and `unravel` functionality
 @purify(ravel=True)
 def model():
     x = jp.param(2)
@@ -58,7 +74,7 @@ print("Flat params:", flat_params)
 print("Unraveled params:", unraveled_params)
 print("Result:", result)
 
-# %% Complex mock example with many functions, log-normal and uniform variables, higher-order primitives, and intermediates
+# %% 4. Complex mock example with many functions, log-normal and uniform variables, and higher-order primitives
 def chop(vegetable, slices):
     return (vegetable / slices) * jnp.ones(slices)
 
@@ -84,7 +100,6 @@ def eat(food):
 
 @purify
 def dinner():
-
     carrots = jnp.cos(jp.param(5, name="carrots"))
     celery = jnp.sin(jp.param(5, name="celery"))
     onions = jnp.tanh(jp.param(2, name="onions"))
@@ -102,7 +117,7 @@ def dinner():
         jp.UniformVariable("bay_leaf", low=2, high=3),
     ])
 
-    lentils = jp.param(3000, name="lentils")
+    lentils = jp.log_normal(jp.param(300, name="lentils"), mean=1.0, sigma=0.1)
     lentils = jax.jvp(jnp.sin, (lentils,), (lentils,))[1]
     soup = boil(
         seasoning * jnp.concatenate([lentils, aromatics]),
@@ -116,15 +131,10 @@ def dinner():
 params = dinner.normal(rng)
 result = dinner(params)
 intermediates = dinner.intermediates(params)
-
 lots_of_soup = jax.vmap(dinner.normal)(jr.split(rng, 10))
 grads = jax.jit(jax.vmap(jax.grad(dinner)))(lots_of_soup)
 
-# %% Legitimate example of Bayesian inference for a (linear) Gaussian process model
-from jax.scipy.sparse.linalg import cg
-import matplotlib.pyplot as plt
-from functools import partial
-
+# %% 5. Bayesian inference application with a linear Gaussian process model
 def field(xi, pad=10):
     n = xi.shape[0]
     k = jnp.fft.fftfreq(n, d=1.0/n)
@@ -139,7 +149,6 @@ def model():
     grid = jp.fixed(1000, name="grid")
     xi = jp.param(grid.shape[0] + 2*pad, name="xi")
     y = jp.intermediate(field(xi, pad=pad), name="y")
-
     x_obs = jp.fixed(100, name="x_obs")
     y_obs = jnp.interp(x_obs, grid, y)
     return y_obs
@@ -177,3 +186,4 @@ plt.errorbar(x_obs, y_obs, yerr=noise_std, fmt="o", c='k', alpha=0.5, ms=2, lw=1
 plt.plot(grid, field_mean, c='C0')
 plt.plot(grid, field_samples.T, alpha=0.5, c='C0')
 plt.show()
+
