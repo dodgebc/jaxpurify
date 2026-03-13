@@ -6,17 +6,17 @@ from jax import Array
 from .transformation import param, intermediate, fixed
 
 
-def NormalVariable(name, mean=0.0, sigma=1.0):
+def normal_variable(name, mean=0.0, sigma=1.0):
     """Shortcut to create a scalar normal random variable which is both a parameter and intermediate value. Common for learned hyperparameters."""
     return intermediate(normal(param(name=name), mean=mean, sigma=sigma), name=name)
 
 
-def LogNormalVariable(name, mean=1.0, sigma=1.0):
+def log_normal_variable(name, mean=1.0, sigma=1.0):
     """Shortcut to create a scalar log-normal random variable which is both a parameter and intermediate value. Common for learned hyperparameters."""
     return intermediate(log_normal(param(name=name), mean=mean, sigma=sigma), name=name)
 
 
-def UniformVariable(name, low=0.0, high=1.0):
+def uniform_variable(name, low=0.0, high=1.0):
     """Shortcut to create a scalar uniform random variable which is both a parameter and intermediate value. Common for learned hyperparameters."""
     return intermediate(uniform(param(name=name), low=low, high=high), name=name)
 

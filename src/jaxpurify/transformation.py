@@ -17,7 +17,7 @@ fixed_p = core.Primitive("fixed")
 intermediate_p = core.Primitive("intermediate")
 
 
-def param(shape=(), name=None, dtype=None):
+def param(shape=(), *, name=None, dtype=None):
     """
     Marker for a parameter in a model passed to `purify`.
     These can be initialized with `model.zeros` or `model.normal`.
@@ -27,20 +27,20 @@ def param(shape=(), name=None, dtype=None):
     return param_p.bind(x, name=name)
 
 
-def fixed(shape=(), name=None, dtype=None):
+def fixed(shape=(), *, name, dtype=None):
     """
     Marker for a fixed value in a model passed to `purify`.
-    Fixed values can usually just be closed over, but this allows them to be passed as an argument instead.
-    The `name` must be unique among fixed values in the model, if `None` is provided the object id will be used.
+    Fixed values can often just be closed over, but this allows them to be passed as an argument instead.
+    The `name` is required and must be unique among fixed values in the model.
     """
     x = jnp.zeros(shape, dtype)
     return fixed_p.bind(x, name=name)
 
 
-def intermediate(x, name=None):
+def intermediate(x, *, name):
     """
     Marker for an intermediate value to be returned by a model passed to `purify` when called with `model.intermediates`.
-    The `name` must be unique among intermediates in the model, if `None` is provided the object id will be used.
+    The `name` is required and must be unique among intermediates in the model.
     """
     return intermediate_p.bind(x, name=name)
 
@@ -88,20 +88,25 @@ def _eqn_name(eqn):
         name = str(id(eqn.outvars[0]))
     return name
 
+def _set_eqn(dictionary, eqn, val):
+    name = _eqn_name(eqn)
+    if name in dictionary:
+        raise ValueError(f"Duplicate name: {name}")
+    dictionary[name] = val
 
 def purify(model=None, *, ravel=False):
     """
     Transform a JAX function which takes no parameters into function which accepts parameters, optionally fixed data, and can return intermediate values.
     These behaviors are controlled by the use of `param`, `fixed`, and `intermediate` primitives in the original function.
 
-    The returned function should be called as `model(params, fixed=None)`, where fixed values can be omitted if no `fixed` primitives were used.
+    The returned function should be called as `model(params, **fixed)`.
 
     The returned function also has the following attributes:
     - `shapes()`: returns a dictionary of parameter shapes and dtypes as `jax.ShapeDtypeStruct`.
     - `zeros()`: returns a dictionary of parameters initialized to zero (or a 1d array if `ravel=True`)
     - `normal(rng)`: returns a dictionary of parameters initialized with unit normal values (or a 1d array if `ravel=True`).
-    - `fixed()`: returns a dictionary of fixed values initialized to zero, for reference.
-    - `intermediates(params, fixed=None)`: returns a dictionary of intermediate values computed during evaluation.
+    - `fixed()`: returns a dictionary of fixed value shapes and dtypes as `jax.ShapeDtypeStruct`.
+    - `intermediates(params, **fixed)`: returns a dictionary of intermediate values computed during evaluation.
     - `unravel`: if `ravel=True`, this is a function that unravels the raveled parameter vector back into the original parameter structure.
 
     Trivial example (see demo.py for more):
@@ -109,7 +114,7 @@ def purify(model=None, *, ravel=False):
     @purify
     def model():
         x = param(3, name="x")
-        return 2 * x
+        return x**2
 
     x = model.normal(rng)
     model(x)
@@ -139,8 +144,9 @@ def purify(model=None, *, ravel=False):
         params = {}
         for eqn in jaxpr.jaxpr.eqns:
             if eqn.primitive is param_p:
-                outvar = eqn.outvars[0]
-                params[_eqn_name(eqn)] = jax.ShapeDtypeStruct(outvar.aval.shape, outvar.aval.dtype)
+                _set_eqn(params, eqn, jax.ShapeDtypeStruct(eqn.outvars[0].aval.shape, eqn.outvars[0].aval.dtype))
+                # outvar = eqn.outvars[0]
+                # params[_eqn_name(eqn)] = jax.ShapeDtypeStruct(outvar.aval.shape, outvar.aval.dtype)
         if ravel:
             total_size = sum(param.size for param in params.values())
             cast_type = jnp.result_type(*[param.dtype for param in params.values()])
@@ -153,8 +159,11 @@ def purify(model=None, *, ravel=False):
         params = {}
         for eqn in jaxpr.jaxpr.eqns:
             if eqn.primitive is param_p:
-                outvar = eqn.outvars[0]
-                params[_eqn_name(eqn)] = jnp.zeros(outvar.aval.shape, outvar.aval.dtype)
+                _set_eqn(params, eqn, jnp.zeros_like(eqn.outvars[0].aval))
+                # outvar = eqn.outvars[0]
+                # if _eqn_name(eqn) in params:
+                #     raise ValueError(f"Duplicate parameter: {_eqn_name(eqn)}")
+                # params[_eqn_name(eqn)] = jnp.zeros(outvar.aval.shape, outvar.aval.dtype)
         if ravel:
             params, _ = ravel_pytree(params)
         return params
@@ -166,24 +175,30 @@ def purify(model=None, *, ravel=False):
         for eqn in jaxpr.jaxpr.eqns:
             if eqn.primitive is param_p:
                 rng, subkey = jr.split(rng)
-                outvar = eqn.outvars[0]
-                params[_eqn_name(eqn)] = jr.normal(subkey, outvar.aval.shape, outvar.aval.dtype)
+                _set_eqn(params, eqn, jr.normal(subkey, eqn.outvars[0].aval.shape, eqn.outvars[0].aval.dtype))
+                # outvar = eqn.outvars[0]
+                # if _eqn_name(eqn) in params:
+                #     raise ValueError(f"Duplicate parameter: {_eqn_name(eqn)}")
+                # params[_eqn_name(eqn)] = jr.normal(subkey, outvar.aval.shape, outvar.aval.dtype)
         if ravel:
             params, _ = ravel_pytree(params)
         return params
 
     # Function to make fixed values full of zeros
     def fixed():
-        """Return a dictionary of `fixed` arrays initialized to zero."""
+        """Return a dictionary of `fixed` arrays as `jax.ShapeDtypeStruct`. These should be passed as kwargs to model evaluation."""
         fixed_vals = {}
         for eqn in jaxpr.jaxpr.eqns:
             if eqn.primitive is fixed_p:
-                outvar = eqn.outvars[0]
-                fixed_vals[_eqn_name(eqn)] = jnp.zeros(outvar.aval.shape, outvar.aval.dtype)
+                _set_eqn(fixed_vals, eqn, jax.ShapeDtypeStruct(eqn.outvars[0].aval.shape, eqn.outvars[0].aval.dtype))
+                # outvar = eqn.outvars[0]
+                # if _eqn_name(eqn) in fixed_vals:
+                #     raise ValueError(f"Duplicate fixed parameter: {_eqn_name(eqn)}")
+                # fixed_vals[_eqn_name(eqn)] = jax.ShapeDtypeStruct(outvar.aval.shape, outvar.aval.dtype)
         return fixed_vals
 
     # Pure forward pass
-    def forward(params, fixed=None):
+    def forward(params, **fixed):
         """Evaluate model with params and (optionally) fixed values in the structure returned by `zeros`/`normal` and `fixed`, respectively."""
         if unravel:
             params = unravel(params)
@@ -202,16 +217,17 @@ def purify(model=None, *, ravel=False):
         for eqn in jaxpr.jaxpr.eqns:
             # Load parameter or bind primitive
             if eqn.primitive is param_p:
+                if _eqn_name(eqn) not in params:
+                    raise ValueError(f"Model has parameter {_eqn_name(eqn)} but no value was provided.")
                 outvals = params[_eqn_name(eqn)]
             elif eqn.primitive is fixed_p:
-                if fixed is None:
-                    raise ValueError(
-                        f"Model has fixed parameter {_eqn_name(eqn)} but no fixed values were provided"
-                    )
+                if _eqn_name(eqn) not in fixed:
+                    raise ValueError(f"Model has fixed parameter {_eqn_name(eqn)} but no value was provided.")
                 outvals = fixed[_eqn_name(eqn)]
             else:
                 invals = safe_map(read, eqn.invars)
-                outvals = eqn.primitive.bind(*invals, **eqn.params)
+                subfuns, bind_params = eqn.primitive.get_bind_params(eqn.params)
+                outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
             # Save to context
             if not eqn.primitive.multiple_results:
                 outvals = [outvals]
@@ -221,7 +237,7 @@ def purify(model=None, *, ravel=False):
         return out[0] if len(out) == 1 else out
 
     # Forward pass returning intermediates
-    def intermediates(params, fixed=None):
+    def intermediates(params, **fixed):
         """Evaluate model and return intermediate values with params and (optionally) fixed values in the structure returned by `zeros`/`normal` and `fixed`, respectively."""
         if unravel:
             params = unravel(params)
@@ -241,16 +257,17 @@ def purify(model=None, *, ravel=False):
         for eqn in jaxpr.jaxpr.eqns:
             # Load parameter or bind primitive
             if eqn.primitive is param_p:
+                if _eqn_name(eqn) not in params:
+                    raise ValueError(f"Model has parameter {_eqn_name(eqn)} but no value was provided.")
                 outvals = params[_eqn_name(eqn)]
             elif eqn.primitive is fixed_p:
-                if fixed is None:
-                    raise ValueError(
-                        f"Model has fixed parameter {_eqn_name(eqn)} but no fixed values were provided"
-                    )
+                if _eqn_name(eqn) not in fixed:
+                    raise ValueError(f"Model has fixed parameter {_eqn_name(eqn)} but no value was provided.")
                 outvals = fixed[_eqn_name(eqn)]
             else:
                 invals = safe_map(read, eqn.invars)
-                outvals = eqn.primitive.bind(*invals, **eqn.params)
+                subfuns, bind_params = eqn.primitive.get_bind_params(eqn.params)
+                outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
             # Save to context
             if not eqn.primitive.multiple_results:
                 outvals = [outvals]

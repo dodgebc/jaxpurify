@@ -58,15 +58,15 @@ def test_fixed():
     @purify
     def model():
         x = jp.param(3, name="x")
-        b = jp.fixed(name="b")
+        b = jp.fixed((2,3), name="b")
         return x + b
 
     params = model.normal(rng)
     fixed = model.fixed()
-    result = model(params, fixed)
+    result = model(params, b=1.0)
 
-    assert fixed["b"] == 0.0
-    assert jnp.allclose(result, params["x"] + fixed["b"])
+    assert fixed["b"].shape == (2, 3)
+    assert jnp.allclose(result, params["x"] + 1.0)
 
 def test_intermediates():
     @purify
@@ -78,6 +78,15 @@ def test_intermediates():
     params = model.normal(rng)
     intermediates = model.intermediates(params)
     assert jnp.allclose(intermediates["y"], params["x"]**2)
+
+def test_with_custom_jvp():
+    @purify
+    def model():
+        return jax.nn.relu(jp.param(3, name="x"))
+
+    params = model.normal(rng)
+    results = model(params)
+    assert jnp.allclose(results, jax.nn.relu(params["x"]))
 
 def higher_order_primitives():
     @purify
