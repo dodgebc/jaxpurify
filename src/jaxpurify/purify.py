@@ -130,7 +130,7 @@ def purify(model=None, *, ravel=False, jit=False):
     jaxpr = jax.make_jaxpr(model)()
 
     # Extract parameter structure for raveling
-    unravel = lambda x: x
+    unravel = None
     if ravel:
         zero_params = {}
         for eqn in jaxpr.jaxpr.eqns:
