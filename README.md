@@ -16,7 +16,7 @@ Parameters are only mentioned once, right next to where they are used. This avoi
 Other notable features:
 - `fixed` arrays for data that changes between calls but should not be be differentiated
 - `intermediate` outputs for extracting internal values without restructuring your model
-- `ravel` keyword for flattening parameters into a single 1d array
+- `ravel` keyword for accepting parameters as a single 1d array
 
 The idea is basically the same as [Haiku](https://github.com/google-deepmind/dm-haiku) but without the module abstraction and adding the features above. The implementation is also different and allows arbitrary JAX transformations inside your model, which cause side-effecting [issues](https://dm-haiku.readthedocs.io/en/latest/notebooks/transforms.html) in Haiku.
 
@@ -81,26 +81,26 @@ result_field = model.intermediates(params, x_obs=x_obs)["f"]
 
 ## Q&A
 
-#### *How does it work?*
+### How does it work?
 
 JAX transformations like `grad` and `vmap` work by walking through the "Jaxpr" that describes the computation and interpreting each primitive in a new light. We use this same infrastructure for `purify`, inserting parameters into the computational graph where needed during evaluation. Under the hood, `param`, `fixed`, and `intermediate` are identity primitives which exist only to trigger special handling. If the model is not purified, parameters and fixed values are just arrays of zeros. This [tutorial](https://docs.jax.dev/en/latest/notebooks/Writing_custom_interpreters_in_Jax.html) is a great introduction to the interpreter system in JAX.
 
-#### *Is it compatible with arbitrary JAX transformations anywhere I like?*
+### Is it compatible with arbitrary JAX transformations anywhere I like?
 
 Yes! You should be able to apply arbitrary transformations both inside the model and to the resulting purified function. That being said, `jaxpurify` uses JAX internals which are not documented or promised to be stable, so if something breaks please open an issue.
 
-#### *What happens to Python control flow inside the model?*
+### What happens to Python control flow inside the model?
 
 It will be executed assuming zeros for parameters and fixed values. As a general rule, don't do anything that would prevent you from applying `jit` to the purified model. By the way, this can be automatically done with `jit=True` if desired.
 
-#### *How do you deal with duplicate parameter names when reusing a component?*
+### How do you deal with duplicate parameter names when reusing a component?
 
 There is no automatic way. For models which do not have a simple tree structure, what good names could even be assigned? One could append "_1", "_2", etc based on the order of application, but this can be confusing and subject to change in complex models. Instead, if you want named parameters in reusable components, just accept a `name` argument as shown in `examples/neural_network.py`.
 
-#### *Is this better than using callable PyTrees like Equinox?*
+### Is this better than using callable PyTrees like Equinox?
 
-It depends. I find initialization and other class boilerplate to be verbose and distracting, especially when compared with what is possible with `jaxpurify`. Also, fixed arrays in PyTree models must be excluded from derivatives via `stop_gradient`, Equinox-style filtering, or by manually passing them as arguments deep into the model, all of which I find unwieldy. On the other hand, if your model is a tree, it is hard to give up the convenience of a tree-like data structure which enables simple inspection and intermediate evaluation while avoiding the duplicate name issue mentioned above. If your model is a graph, there is little to be done anyway.
+It depends. I find initialization and other class boilerplate to be verbose and distracting, especially when compared with what is possible with `jaxpurify`. Also, fixed arrays in PyTree models must be excluded from derivatives via `stop_gradient`, Equinox-style filtering, or by manually passing them as arguments deep into the model, all of which I find unwieldy. On the other hand, if your model is a tree, it is hard to give up the convenience of a tree-like data structure which enables simple inspection and intermediate evaluation while avoiding the duplicate name issue mentioned above. If your model is a graph, there is little to be done.
 
-#### *Why do I need to declare the shapes of fixed values in the model?*
+### Why do I need to declare the shapes of fixed values in the model?
 
 One could imagine determining shapes from whatever arrays are passed, eliminating the need to synchronize the model. But then fixed values would need to be passed to the initialization methods, each model call would need to re-trace the function, it would not be possible to harvest fixed value names, and the unpurified model would not have a well-defined call behavior. Instead, if you need to change model shapes frequently, just make a factory function.

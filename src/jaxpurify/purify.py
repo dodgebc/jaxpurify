@@ -105,7 +105,7 @@ def _safe_map(func, *iterables):
 def purify(model=None, *, ravel=False, jit=False):
     """
     Transform a JAX function which takes no parameters into function which accepts parameters, optionally fixed data, and can return intermediate values.
-    These behaviors are controlled by the use of `param`, `fixed`, and `intermediate` primitives in the original function.
+    These behaviors are controlled by the use of `param`, `fixed`, and `intermediate` primitives in the original function. See the readme and examples folder for more usage details.
 
     Args:
         `model`: a JAX function which takes no parameters. Defaults to `None` in which case a partial function is returned which can be used as a decorator.
@@ -113,24 +113,15 @@ def purify(model=None, *, ravel=False, jit=False):
         `jit`: if `True` the function will be automatically jitted.
 
     Returns:
-        A pure function which should be called as `model(params, **fixed)` and has the following additional attributes:
-            - `shapes()`: returns a dictionary of parameter shapes and dtypes as `jax.ShapeDtypeStruct`.
-            - `zeros()`: returns a dictionary of parameters initialized to zero (or a 1d array if `ravel=True`)
-            - `normal(rng)`: returns a dictionary of parameters initialized with unit normal values (or a 1d array if `ravel=True`).
-            - `fixed_shapes()`: returns a dictionary of fixed value shapes and dtypes as `jax.ShapeDtypeStruct`.
-            - `intermediates(params, **fixed)`: returns a dictionary of intermediate values computed during evaluation.
-            - `unravel`: if `ravel=True`, unravels the raveled parameter vector back into the original parameter structure.
+        A pure function which should be called as `model(params, **fixed)` and has the additional attributes listed below. 
 
-    Trivial example (see readme and examples for more):
-    ```python
-    @purify
-    def model():
-        x = param(3, name="x")
-        return x**2
-
-    params = model.normal(rng)
-    model(params)
-    ```
+    Attributes:
+        `shapes()`: returns a dictionary of parameter shapes and dtypes as `jax.ShapeDtypeStruct`.
+        `zeros()`: returns a dictionary of parameters initialized to zero (or a 1d array if `ravel=True`).
+        `normal(rng)`: returns a dictionary of parameters initialized with unit normal values (or a 1d array if `ravel=True`).
+        `fixed_shapes()`: returns a dictionary of fixed value shapes and dtypes as `jax.ShapeDtypeStruct`.
+        `intermediates(params, **fixed)`: returns a dictionary of intermediate values computed during evaluation.
+        `unravel`: if `ravel=True`, unravels the raveled parameter vector back into the original parameter structure.
     """
 
     if model is None:
