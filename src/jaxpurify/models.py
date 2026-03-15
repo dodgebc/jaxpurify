@@ -1,9 +1,8 @@
 import jax
 import jax.numpy as jnp
 import jax.random as jr
-from jax import Array
 
-from .transformation import param, intermediate, fixed
+from .purify import param, intermediate
 
 
 def normal_variable(name, mean=0.0, sigma=1.0):

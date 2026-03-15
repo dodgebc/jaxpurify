@@ -18,7 +18,7 @@ jobs:
           pip install ruff 
 
       - name: Run Ruff
-        run: ruff check . --output-format=github
+        run: ruff check src/ --output-format=github
   
   pytest:
     runs-on: ubuntu-latest

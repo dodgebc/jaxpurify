@@ -62,7 +62,7 @@ def test_fixed():
         return x + b
 
     params = model.normal(rng)
-    fixed = model.fixed()
+    fixed = model.fixed_shapes()
     result = model(params, b=1.0)
 
     assert fixed["b"].shape == (2, 3)
@@ -89,15 +89,20 @@ def test_with_custom_jvp():
     assert jnp.allclose(results, jax.nn.relu(params["x"]))
 
 def higher_order_primitives():
+    def f(x):
+        a = jp.param()
+        return jnp.sin(a * x)
+
     @purify
     def model():
         x = jp.param(3, name="x")
-        y = jax.vjp(jnp.sin, x)[1](x + 1)[0]
+        y = jax.grad(jax.grad(f))(x)
         z = jax.jit(jax.vmap(jnp.cos))(y)
         return z
 
     def model_explicit(x):
-        y = jax.vjp(jnp.sin, x)[1](x + 1)[0]
+        func = jax.vjp(f, x)[1]
+        y = jax.grad(jax.grad(f))(x)
         z = jax.jit(jax.vmap(jnp.cos))(y)
         return z
 
@@ -106,8 +111,8 @@ def higher_order_primitives():
     result_explicit = model_explicit(params)
     assert jnp.allclose(result, result_explicit)
 
-    result_vjp = jax.vjp(model_explicit, params)[1](2*result)
-    result_vjp_explicit = jax.vjp(model_explicit, params)[1](2*result_explicit)
-    assert jnp.allclose(result_vjp, result_vjp_explicit)
+    result_grad = jax.grad(model)(params)
+    result_grad_explicit = jax.grad(model_explicit)(params)
+    assert jnp.allclose(result_grad, result_grad_explicit)
 
     

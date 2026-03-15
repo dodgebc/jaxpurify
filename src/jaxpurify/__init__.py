@@ -1,4 +1,4 @@
-from .transformation import purify, param, fixed, intermediate
+from .purify import purify, param, fixed, intermediate
 from .models import (
     normal_variable,
     log_normal_variable,
