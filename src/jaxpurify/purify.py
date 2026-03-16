@@ -209,11 +209,11 @@ def purify(model=None, *, ravel=False, jit=False):
             # Load parameter or bind primitive
             if eqn.primitive is param_p:
                 if _eqn_name(eqn) not in params:
-                    raise ValueError(f"Model has parameter {_eqn_name(eqn)} but no value was provided.")
+                    raise ValueError(f"Model has parameter '{_eqn_name(eqn)}' but no value was provided.")
                 outvals = params[_eqn_name(eqn)]
             elif eqn.primitive is fixed_p:
                 if _eqn_name(eqn) not in fixed:
-                    raise ValueError(f"Model has fixed parameter {_eqn_name(eqn)} but no value was provided.")
+                    raise ValueError(f"Model has fixed value '{_eqn_name(eqn)}' but no value was provided.")
                 outvals = fixed[_eqn_name(eqn)]
             else:
                 invals = _safe_map(read, eqn.invars)

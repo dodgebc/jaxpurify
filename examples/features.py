@@ -78,7 +78,7 @@ print("Intermediates:", intermediates)
 print("Result:", result)
 
 # %% Parameters can be flattened into a single 1d array
-@purify(ravel=True)
+@purify(ravel=True, jit=True)
 def model():
     x = jp.param(2)
     y = jp.param((2, 2))
@@ -92,12 +92,16 @@ print("Flat params:", flat_params)
 print("Unraveled params:", unraveled_params)
 print("Result:", result)
 
-# %% Shortcuts for common variable types
+# %% Shortcuts for common variable types, the "variables" are automatically intermediates
 @purify
 def model():
     a = jp.normal_variable("a", mean=1.0, sigma=2.0)
     b = jp.log_normal_variable("b", mean=1.0, sigma=0.5)
     c = jp.uniform_variable("c", low=-1.0, high=1.0)
+
+    A = jp.normal(jp.param((3, 3), name="A"), mean=1.0, sigma=2.0)
+    B = jp.log_normal(jp.param((3, 3), name="B"), mean=1.0, sigma=0.5)
+    C = jp.uniform(jp.param((3, 3), name="C"), low=-1.0, high=1.0)
     return a, b, c
 
 params = model.normal(rng)

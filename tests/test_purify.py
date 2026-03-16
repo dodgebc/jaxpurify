@@ -88,7 +88,7 @@ def test_with_custom_jvp():
     results = model(params)
     assert jnp.allclose(results, jax.nn.relu(params["x"]))
 
-def higher_order_primitives():
+def test_higher_order_primitives():
     def f(x):
         a = jp.param()
         return jnp.sin(a * x)

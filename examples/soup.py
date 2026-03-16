@@ -83,3 +83,5 @@ result = dinner(params)
 intermediates = dinner.intermediates(params)
 lots_of_soup = jax.vmap(dinner.normal)(jr.split(rng, 10))
 grads = jax.jit(jax.vmap(jax.grad(dinner)))(lots_of_soup)
+
+# %%
