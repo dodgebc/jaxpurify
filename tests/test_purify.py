@@ -96,23 +96,20 @@ def test_higher_order_primitives():
     @purify
     def model():
         x = jp.param(3, name="x")
-        y = jax.grad(jax.grad(f))(x)
-        z = jax.jit(jax.vmap(jnp.cos))(y)
-        return z
+        y = jax.jit(jax.vmap(jax.grad(jax.grad(f))))(x)
+        return jnp.sum(y)
 
     def model_explicit(x):
-        func = jax.vjp(f, x)[1]
-        y = jax.grad(jax.grad(f))(x)
-        z = jax.jit(jax.vmap(jnp.cos))(y)
-        return z
+        y = jax.jit(jax.vmap(jax.grad(jax.grad(f))))(x)
+        return jnp.sum(y)
 
     params = model.normal(rng)
     result = model(params)
-    result_explicit = model_explicit(params)
+    result_explicit = model_explicit(params['x'])
     assert jnp.allclose(result, result_explicit)
 
     result_grad = jax.grad(model)(params)
-    result_grad_explicit = jax.grad(model_explicit)(params)
-    assert jnp.allclose(result_grad, result_grad_explicit)
+    result_grad_explicit = jax.grad(model_explicit)(params['x'])
+    assert jnp.allclose(result_grad['x'], result_grad_explicit)
 
     
