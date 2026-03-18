@@ -4,7 +4,7 @@ dynamic = ["version"]
 authors = [
     {name="Benjamin Dodge", email="bendodge@stanford.edu"}
 ]
-description = "A lightweight JAX interpreter for models."
+description = "A simple JAX interpreter for models."
 readme = "README.md"
 license = "MIT"
 requires-python = ">= 3.11"

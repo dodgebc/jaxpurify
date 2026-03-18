@@ -41,31 +41,20 @@ import jaxpurify as jp
 from jaxpurify import purify # aesthetics
 
 def field(n, alpha):
-    # spectral index alpha is taken as an argument
     k = jnp.fft.fftfreq(n).at[0].set(jnp.inf)
     power = jnp.abs(k) ** alpha
-
-    # xi will always be raw white noise, so declare here
-    xi = jp.param(n, name="xi")
+    xi = jp.param(n, name="xi") # declare white noise parameter
     f = jnp.fft.fft(jnp.sqrt(power) * xi)
     return f.real - f.imag
 
 @purify
 def model():
-    # fixed model grid is closed over
     x = jnp.linspace(0, 5, 100)
-
-    # shortcut for a transformed white noise parameter
-    alpha = -jp.log_normal_variable("alpha", mean=3.0, sigma=0.1)
-    
-    # return the underlying field as an intermediate
-    f = jp.intermediate(field(x.shape[0], alpha), name="f")
-
-    # fixed x_obs will be passed to model at evaluation time
-    x_obs = jp.fixed(3, name="x_obs")
-
-    # read out at observation points
-    return jnp.interp(x_obs, x, f)
+    alpha = -jp.log_normal_variable("alpha", mean=3.0, sigma=0.1) # useful parameter shortcut
+    f = jp.intermediate(field(x.shape[0], alpha), name="f") # intermediate return
+    x_obs = jp.fixed(3, name="x_obs") # passed at evaluation time
+    f_obs = jnp.interp(x_obs, x, f)
+    return f_obs
 
 # ways to get parameter dictionary
 param_shapes = model.shapes()
