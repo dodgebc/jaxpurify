@@ -18,9 +18,10 @@ Other notable features:
 - `intermediate` outputs for extracting internal values without restructuring the model
 - `ravel` keyword for accepting parameters as a single 1d array
 
-The idea is basically the same as [Haiku](https://github.com/google-deepmind/dm-haiku) but without the module abstraction and adding the features above. The implementation is also different and allows arbitrary JAX transformations inside your model, which would cause side-effect [issues](https://dm-haiku.readthedocs.io/en/latest/notebooks/transforms.html) in Haiku.
+I wrote this tool to make it easier to read and write probabilistic models in astrophysics after getting frustrated using neural network libraries for the task. Our generative models take physical parameters to be learned and apply known transformations to produce predicted data. We often work in unit normal "whitened" parameter space, our model graphs are not trees, new custom components frequently need to be made, intermediate outputs are just as important as predicted data, and fixed arrays abound. These characteristics determined the design.
 
-I wrote this tool to make it easier to read and write probabilistic models in astrophysics after getting frustrated using neural network libraries for the task. We often work in unit normal "whitened" parameter space, our model graphs are not trees, new custom components frequently need to be made, intermediate outputs are just as important as predicted data, and fixed arrays abound. These characteristics determined the design.
+The "purifying" transformation is not a new idea, to be clear. [Haiku](https://github.com/google-deepmind/dm-haiku) transforms models into pure functions but without the features above and with side-effect issues. [Oryx](https://github.com/jax-ml/oryx) works in a similar way with more general scope but different interface. And there is plenty of other discussion in this direction [[1]](https://sjmielke.com/jax-purify.htm) [[2]](https://github.com/jax-ml/jax/discussions/14661).
+
 
 ## Installation
 
@@ -76,7 +77,7 @@ JAX transformations like `grad` and `vmap` work by walking through the "Jaxpr" t
 
 #### Is it compatible with arbitrary JAX transformations anywhere I like?
 
-Yes! You should be able to apply arbitrary transformations both inside the model and to the resulting purified function. That being said, `jaxpurify` uses JAX internals which are not documented or promised to be stable, so if something breaks please open an issue.
+Almost! You should be able to apply transformations both inside the model and to the resulting purified function and it will behave exactly as if the parameter was already an initialized array. The only exceptions are certain higher-order primitives like `scan`, where if you declare parameters inside the body function they will be missed. Passing them through or closing over them are totally fine.
 
 #### What happens to Python control flow inside the model?
 
@@ -90,6 +91,10 @@ There is no automatic way. For models which do not have a simple tree structure,
 
 It depends. I find initialization and other class boilerplate to be verbose and distracting, especially when compared to what is possible with `jaxpurify`. Also, fixed arrays in PyTree models must be excluded from derivatives via `stop_gradient`, Equinox-style filtering, or by manually passing them as arguments deep into the model, all of which I find unwieldy. On the other hand, if your model graph is a tree with all arrays learnable (read: neural network), it is sad to give up the convenience of a tree-like data structure which enables simple inspection and intermediate evaluation while avoiding the duplicate name issue mentioned above.
 
+#### How is this different than Oryx?
+
+Parameters and fixed values are declared with shape. Parameters are assumed to be unit normal and can then be transformed into other distributions. Parameter raveling and class-like `model.normal(rng)`, `model(params)`, etc are also provided. These are all surface-level ergonomics which make code shorter. On the other hand, Oryx is a much more substantial effort with more general scope and better handling of certain higher-order primitives. If it is convenient to read and write your model in Oryx, that is probably preferable.
+
 #### Why do I need to declare the shapes of fixed values in the model?
 
-One could imagine determining shapes from whatever arrays are passed, eliminating the need to synchronize the model. But then fixed values would need to be passed to the initialization methods, each model call would need to re-trace the function, it would not be possible to harvest fixed value names, and the unpurified model would not have a well-defined call behavior. Instead, if you need to change any shapes in your model frequently, just make a factory function as shown in `examples/neural_network.py`.
+One could imagine determining shapes from whatever arrays are passed, eliminating the need to synchronize the model. But then fixed values would need to be passed to the initialization methods, each model call would need to re-trace the function, it would be more complicated to harvest fixed value names, and the unpurified model would not have a well-defined call behavior. Instead, if you need to change any shapes in your model frequently, just make a factory function as shown in `examples/neural_network.py`.
