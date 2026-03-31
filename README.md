@@ -20,7 +20,7 @@ Other notable features:
 
 I wrote this tool to make it easier to read and write probabilistic models in astrophysics after getting frustrated using neural network libraries for the task. Our generative models take physical parameters to be learned and apply known transformations to produce predicted data. We often work in unit normal "whitened" parameter space, our model graphs are not trees, new custom components frequently need to be made, intermediate outputs are just as important as predicted data, and fixed arrays abound. These characteristics determined the design.
 
-The "purifying" transformation is not a new idea, to be clear. [Haiku](https://github.com/google-deepmind/dm-haiku) transforms models into pure functions but without the features above and with side-effect issues. [Oryx](https://github.com/jax-ml/oryx) works in a similar way with more general scope but different interface. And there is plenty of other discussion in this direction [[1]](https://sjmielke.com/jax-purify.htm) [[2]](https://github.com/jax-ml/jax/discussions/14661).
+The "purifying" transformation is not a new idea, to be clear. [Haiku](https://github.com/google-deepmind/dm-haiku) transforms models into pure functions but without the features above and with side-effect issues. [Oryx](https://github.com/jax-ml/oryx) works in a similar way with a more general scope but a different interface. And there is plenty of other discussion in this direction [[1]](https://sjmielke.com/jax-purify.htm) [[2]](https://github.com/jax-ml/jax/discussions/14661).
 
 
 ## Installation

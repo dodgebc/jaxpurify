@@ -217,8 +217,12 @@ def purify(model=None, *, ravel=False, jit=False):
                 outvals = fixed[_eqn_name(eqn)]
             else:
                 invals = _safe_map(read, eqn.invars)
-                subfuns, bind_params = eqn.primitive.get_bind_params(eqn.params)
-                outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
+                result = eqn.primitive.get_bind_params(eqn.params)
+                if isinstance(result, dict):  # JAX >= 0.9.2
+                    outvals = eqn.primitive.bind(*invals, **result)
+                else:  # JAX < 0.9.2
+                    subfuns, bind_params = result
+                    outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
             # Save to context
             if not eqn.primitive.multiple_results:
                 outvals = [outvals]
@@ -257,8 +261,12 @@ def purify(model=None, *, ravel=False, jit=False):
                 outvals = fixed[_eqn_name(eqn)]
             else:
                 invals = _safe_map(read, eqn.invars)
-                subfuns, bind_params = eqn.primitive.get_bind_params(eqn.params)
-                outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
+                result = eqn.primitive.get_bind_params(eqn.params)
+                if isinstance(result, dict):  # JAX >= 0.9.2
+                    outvals = eqn.primitive.bind(*invals, **result)
+                else:  # JAX < 0.9.2
+                    subfuns, bind_params = result
+                    outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
             # Save to context
             if not eqn.primitive.multiple_results:
                 outvals = [outvals]
